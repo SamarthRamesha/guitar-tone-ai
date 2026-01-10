@@ -1,11 +1,14 @@
+import sys
+import os
+sys.path.append(os.path.dirname(__file__))
+
 import streamlit as st
 import tempfile
-import os
 
 from scripts.recommend_engine import ToneRecommender
 
 # -------------------------------------------------
-# PAGE CONFIG
+# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
 # -------------------------------------------------
 
 st.set_page_config(
@@ -13,6 +16,16 @@ st.set_page_config(
     page_icon="🎸",
     layout="centered"
 )
+
+# -------------------------------------------------
+# LOAD MODEL (CACHED)
+# -------------------------------------------------
+
+@st.cache_resource
+def load_engine():
+    return ToneRecommender()
+
+engine = load_engine()
 
 # -------------------------------------------------
 # STYLES
@@ -83,24 +96,22 @@ uploaded = st.file_uploader(
 )
 
 # -------------------------------------------------
-# CONTEXT / LIMITATIONS (NON-INSTRUCTIONAL)
+# CONTEXT PANEL
 # -------------------------------------------------
 
 st.markdown("""
 <div class="panel">
 <strong>How interpretation works</strong><br><br>
 
-The system focuses on tonal balance, harmonic density, and spectral behavior
-to infer amplifier-style controls rather than reproducing effects chains.<br><br>
-
-It performs best when the audio represents a consistent tone identity.
+The system analyzes spectral balance, harmonic density, and dynamic behavior
+to infer amplifier-style controls rather than recreating effects chains.
 
 <hr>
 
 <div class="small">
-• Designed for riff-level or phrase-level audio<br>
-• Optimized for guitar-forward material<br>
-• Interprets tone character, not playing technique
+• Best with consistent tones<br>
+• Optimized for guitar-forward audio<br>
+• Interprets tone character, not performance technique
 </div>
 </div>
 """, unsafe_allow_html=True)
@@ -110,91 +121,71 @@ It performs best when the audio represents a consistent tone identity.
 # -------------------------------------------------
 
 if uploaded is not None:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded.name.split('.')[-1]}") as tmp:
-        tmp.write(uploaded.read())
-        audio_path = tmp.name
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded.name.split('.')[-1]}") as tmp:
+            tmp.write(uploaded.read())
+            audio_path = tmp.name
 
-    st.audio(uploaded)
+        st.audio(uploaded)
 
-    engine = ToneRecommender()
-    result = engine.recommend(audio_path)
+        result = engine.recommend(audio_path)
 
-    os.remove(audio_path)
+        os.remove(audio_path)
 
-    knobs = result["final_knobs"]
-    perceptual = result["perceptual"]
-    distortion = result["distortion_score"]
-    confidence = result.get("confidence", 0.75)
+        knobs = result["final_knobs"]
+        perceptual = result["perceptual"]
+        distortion = result["distortion_score"]
+        confidence = result.get("confidence", 0.75)
 
-    # -------------------------------------------------
-    # AMP SETTINGS
-    # -------------------------------------------------
+        # -------------------------------------------------
+        # AMP SETTINGS
+        # -------------------------------------------------
 
-    st.markdown("## Recommended Amp Controls")
+        st.markdown("## Recommended Amp Controls")
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Gain", f"{knobs['gain']:.2f}")
+        c2.metric("Bass", f"{knobs['bass']:.2f}")
+        c3.metric("Mid", f"{knobs['mid']:.2f}")
+        c4.metric("Treble", f"{knobs['treble']:.2f}")
+        c5.metric("Presence", f"{knobs['presence']:.2f}")
 
-    c1.metric("Gain", f"{knobs['gain']:.2f}")
-    c2.metric("Bass", f"{knobs['bass']:.2f}")
-    c3.metric("Mid", f"{knobs['mid']:.2f}")
-    c4.metric("Treble", f"{knobs['treble']:.2f}")
-    c5.metric("Presence", f"{knobs['presence']:.2f}")
+        # -------------------------------------------------
+        # TONE PROFILE
+        # -------------------------------------------------
 
-    # -------------------------------------------------
-    # PERCEPTUAL DETAILS
-    # -------------------------------------------------
+        with st.expander("Tone profile"):
+            def bar(label, value, hint):
+                st.markdown(f"**{label}**")
+                st.progress(min(max(value, 0.0), 1.0))
+                st.caption(hint)
 
-    with st.expander("Tone profile"):
-        def bar(label, value, hint):
-            st.markdown(f"**{label}**")
-            st.progress(min(max(value, 0.0), 1.0))
-            st.caption(hint)
+            bar("Saturation", perceptual["saturation"],
+                "Harmonic density and drive intensity.")
 
-        bar(
-            "Saturation",
-            perceptual["saturation"],
-            "Indicates harmonic density and drive. Higher values suggest breakup or distortion."
-        )
+            bar("Brightness", perceptual["brightness"],
+                "High-frequency energy and bite.")
 
-        bar(
-            "Brightness",
-            perceptual["brightness"],
-            "Reflects high-frequency energy and presence. Influenced by pick attack and tone controls."
-        )
+            bar("Mid Emphasis", perceptual["mid_emphasis"],
+                "Midrange forwardness or scoop.")
 
-        bar(
-            "Mid Emphasis",
-            perceptual["mid_emphasis"],
-            "Describes how forward or scooped the midrange feels in the mix."
-        )
+            bar("Low-End Weight", perceptual["low_end"],
+                "Bass fullness and stability.")
 
-        bar(
-            "Low-End Weight",
-            perceptual["low_end"],
-            "Represents bass fullness and low-frequency stability."
-        )
+            st.markdown("---")
+            st.markdown("**Distortion Intensity**")
+            st.progress(distortion)
 
-        st.markdown("---")
+        # -------------------------------------------------
+        # CONFIDENCE
+        # -------------------------------------------------
 
-        st.markdown("**Distortion Intensity**")
-        st.progress(distortion)
+        st.markdown("## Confidence")
+        st.progress(confidence)
         st.caption(
-            "Estimated from dynamic compression, spectral flatness, and transient behavior."
+            "Confidence reflects similarity to learned tonal patterns."
         )
 
-        st.caption(
-            "Tone profile is inferred from spectral balance and dynamic behavior, "
-            "not from effects or post-processing."
-        )
-
-    # -------------------------------------------------
-    # CONFIDENCE
-    # -------------------------------------------------
-
-    st.markdown("## Confidence")
-    st.progress(confidence)
-
-    st.caption(
-        "Confidence reflects how closely this tone aligns with learned tonal patterns. "
-        "Experimental processing or rapid tonal shifts may reduce certainty."
-    )
+    except Exception as e:
+        st.error("An error occurred while processing the audio.")
+        st.exception(e)
