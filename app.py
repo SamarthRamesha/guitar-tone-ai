@@ -1,9 +1,10 @@
 import sys
 import os
-sys.path.append(os.path.dirname(__file__))
-
-import streamlit as st
 import tempfile
+import requests
+import streamlit as st
+
+sys.path.append(os.path.dirname(__file__))
 
 from scripts.recommend_engine import ToneRecommender
 
@@ -18,12 +19,42 @@ st.set_page_config(
 )
 
 # -------------------------------------------------
-# LOAD MODEL (CACHED)
+# GOOGLE DRIVE MODEL LINKS (CHANGE THESE)
+# -------------------------------------------------
+
+MODEL_URL = "https://drive.google.com/uc?id=1IwriwUezERujaXvA9Xl4rh-W435Z4aJ3"
+SCALER_URL = "https://drive.google.com/uc?id=1-kclPHu9tg8id3mgQSAI_3_C3RoIr8mF"
+MODEL_PATH = "data/perceptual_model.pkl"
+SCALER_PATH = "data/perceptual_scaler.pkl"
+
+# -------------------------------------------------
+# DOWNLOAD UTIL
+# -------------------------------------------------
+
+def download_file(url, dest):
+    if os.path.exists(dest):
+        return
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with st.spinner(f"Downloading {os.path.basename(dest)}..."):
+        r = requests.get(url, stream=True)
+        r.raise_for_status()
+        with open(dest, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+# -------------------------------------------------
+# LOAD ENGINE (CACHED)
 # -------------------------------------------------
 
 @st.cache_resource
 def load_engine():
-    return ToneRecommender()
+    download_file(MODEL_URL, MODEL_PATH)
+    download_file(SCALER_URL, SCALER_PATH)
+    return ToneRecommender(
+        model_path=MODEL_PATH,
+        scaler_path=SCALER_PATH
+    )
 
 engine = load_engine()
 
@@ -33,22 +64,9 @@ engine = load_engine()
 
 st.markdown("""
 <style>
-body {
-    background-color: #0e1117;
-}
-
-.hero {
-    font-size: 2.1rem;
-    font-weight: 700;
-    margin-bottom: 0.3rem;
-}
-
-.sub {
-    color: #9da7b3;
-    font-size: 1rem;
-    margin-bottom: 1.5rem;
-}
-
+body { background-color: #0e1117; }
+.hero { font-size: 2.1rem; font-weight: 700; margin-bottom: 0.3rem; }
+.sub { color: #9da7b3; font-size: 1rem; margin-bottom: 1.5rem; }
 .panel {
     background: #12161c;
     padding: 1.1rem 1.3rem;
@@ -56,17 +74,7 @@ body {
     border: 1px solid #1f2630;
     margin-bottom: 1.2rem;
 }
-
-.small {
-    color: #8b949e;
-    font-size: 0.85rem;
-}
-
-.metric-label {
-    color: #9da7b3;
-    font-size: 0.8rem;
-}
-
+.small { color: #8b949e; font-size: 0.85rem; }
 hr {
     border: none;
     border-top: 1px solid #1f2630;
@@ -129,7 +137,6 @@ if uploaded is not None:
         st.audio(uploaded)
 
         result = engine.recommend(audio_path)
-
         os.remove(audio_path)
 
         knobs = result["final_knobs"]
@@ -160,17 +167,10 @@ if uploaded is not None:
                 st.progress(min(max(value, 0.0), 1.0))
                 st.caption(hint)
 
-            bar("Saturation", perceptual["saturation"],
-                "Harmonic density and drive intensity.")
-
-            bar("Brightness", perceptual["brightness"],
-                "High-frequency energy and bite.")
-
-            bar("Mid Emphasis", perceptual["mid_emphasis"],
-                "Midrange forwardness or scoop.")
-
-            bar("Low-End Weight", perceptual["low_end"],
-                "Bass fullness and stability.")
+            bar("Saturation", perceptual["saturation"], "Harmonic density and drive intensity.")
+            bar("Brightness", perceptual["brightness"], "High-frequency energy and bite.")
+            bar("Mid Emphasis", perceptual["mid_emphasis"], "Midrange forwardness or scoop.")
+            bar("Low-End Weight", perceptual["low_end"], "Bass fullness and stability.")
 
             st.markdown("---")
             st.markdown("**Distortion Intensity**")
@@ -182,9 +182,7 @@ if uploaded is not None:
 
         st.markdown("## Confidence")
         st.progress(confidence)
-        st.caption(
-            "Confidence reflects similarity to learned tonal patterns."
-        )
+        st.caption("Confidence reflects similarity to learned tonal patterns.")
 
     except Exception as e:
         st.error("An error occurred while processing the audio.")
