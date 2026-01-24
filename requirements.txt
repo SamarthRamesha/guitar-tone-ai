@@ -6,3 +6,4 @@ resampy
 soundfile
 joblib
 scikit-learn
+ffmpeg
