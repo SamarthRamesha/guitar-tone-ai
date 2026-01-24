@@ -3,6 +3,15 @@ import os
 import tempfile
 import streamlit as st
 
+import streamlit as st
+st.write("✅ App booting...")
+
+import sys
+import os
+st.write("📁 Files in root:", os.listdir("."))
+
+st.write("📁 Files in data:", os.listdir("data") if os.path.exists("data") else "NO DATA FOLDER")
+
 # -------------------------------------------------
 # FIX IMPORT PATH (IMPORTANT)
 # -------------------------------------------------
