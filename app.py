@@ -4,27 +4,21 @@ import os
 
 from scripts.recommend_engine import ToneRecommender
 
-# -------------------------------------------------
-# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
-# -------------------------------------------------
+#page configuration
 st.set_page_config(
     page_title="Guitar Tone AI",
     page_icon="🎸",
     layout="centered"
 )
 
-# -------------------------------------------------
-# LOAD ENGINE (CACHED)
-# -------------------------------------------------
+#load engine
 @st.cache_resource
 def load_engine():
     return ToneRecommender()
 
 engine = load_engine()
 
-# -------------------------------------------------
-# STYLES
-# -------------------------------------------------
+#styles
 st.markdown("""
 <style>
 body { background-color: #0e1117; }
@@ -62,27 +56,21 @@ hr {
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------------------------
-# HEADER
-# -------------------------------------------------
+#header
 st.markdown("<div class='hero'>🎸 Guitar Tone AI</div>", unsafe_allow_html=True)
 st.markdown(
     "<div class='sub'>Perceptual amplifier tone estimation powered by machine learning</div>",
     unsafe_allow_html=True
 )
 
-# -------------------------------------------------
-# UPLOAD
-# -------------------------------------------------
+#upload
 uploaded = st.file_uploader(
     "Upload guitar audio",
     type=["wav", "mp3", "flac", "ogg"],
     help="Short, focused guitar recordings produce the most accurate results."
 )
 
-# -------------------------------------------------
-# INFO PANEL
-# -------------------------------------------------
+#info panel
 st.markdown("""
 <div class="panel">
 <strong>How it works</strong><br><br>
@@ -101,9 +89,7 @@ or effects chains.
 </div>
 """, unsafe_allow_html=True)
 
-# -------------------------------------------------
-# PROCESS AUDIO
-# -------------------------------------------------
+#process audio
 if uploaded is not None:
     try:
         suffix = uploaded.name.split(".")[-1]
@@ -119,13 +105,11 @@ if uploaded is not None:
 
         os.remove(audio_path)
 
-        # ---------------- RESULTS ----------------
         knobs = result["final_knobs"]
         perceptual = result["perceptual"]
         distortion = result["distortion_score"]
         confidence = result.get("confidence", 0.8)
 
-        # ---------------- AMP CONTROLS ----------------
         st.markdown("## Recommended Amp Controls")
 
         c1, c2, c3, c4, c5 = st.columns(5)
@@ -135,7 +119,6 @@ if uploaded is not None:
         c4.metric("Treble", f"{knobs['treble']:.2f}")
         c5.metric("Presence", f"{knobs['presence']:.2f}")
 
-        # ---------------- TONE PROFILE ----------------
         with st.expander("Tone profile"):
             def bar(label, value, hint):
                 st.markdown(f"**{label}**")
@@ -169,8 +152,7 @@ if uploaded is not None:
             st.markdown("---")
             st.markdown("**Distortion Intensity**")
             st.progress(distortion)
-
-        # ---------------- CONFIDENCE ----------------
+            
         st.markdown("## Confidence")
         st.progress(confidence)
 
