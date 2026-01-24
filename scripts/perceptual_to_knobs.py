@@ -23,29 +23,27 @@ def perceptual_to_knobs(perceptual):
     low = perceptual["low_end"]
 
     #non linear gain
-    #clean: stays low
-    #metal: ramps FAST after ~0.5
     if sat < 0.4:
         gain = 1.5 + sat * 7.5
     else:
         gain = 3.5 + (sat ** 1.7) * 6.5
 
-        #bass: low end punch without flub
+    #bass: low end punch without flub
     bass = 3.5 + low * 4.5
     if sat > 0.6:
-        bass += 0.8   # metal push
+        bass += 0.8
 
-    #mids clean: forward mids
-    #high gain: scooped but NOT hollow
+    #mids clean
+    #high gain
     if sat < 0.4:
         mid = 4.5 + mids * 3.5
     else:
         mid = 5.0 - mids * 2.2
 
-    # treble: bright but not harsh
+    #bright treble
     treble = 3.5 + bright * 3.8
     if sat > 0.6:
-        treble -= 0.8  # tame fizz
+        treble -= 0.8
 
     #presence
     presence = 3.0 + bright * 4.0
