@@ -2,8 +2,7 @@ streamlit
 numpy
 scipy
 librosa
-soundfile
-scikit-learn
-joblib
-pydub
 resampy
+soundfile
+joblib
+scikit-learn
