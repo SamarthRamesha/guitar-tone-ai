@@ -1,18 +1,11 @@
-# scripts/recommend_engine.py
-
 import os
 import joblib
 import numpy as np
 import requests
-
 from .audio_features import extract_features
 from .perceptual_to_knobs import perceptual_to_knobs
 
-
-# -------------------------------------------------
-# GOOGLE DRIVE FILES
-# -------------------------------------------------
-
+#google drive links
 MODEL_URL = "https://drive.google.com/uc?export=download&id=1IwriwUezERujaXvA9Xl4rh-W435Z4aJ3"
 SCALER_URL = "https://drive.google.com/uc?export=download&id=1IwriwUezERujaXvA9Xl4rh-W435Z4aJ3"
 
@@ -31,10 +24,7 @@ def _download(url, out_path):
             f.write(r.content)
 
 
-# -------------------------------------------------
-# DISTORTION SCORER (UNCHANGED)
-# -------------------------------------------------
-
+# distortion changes
 def distortion_score(rms, flatness, zcr, centroid, bandwidth):
     """
     Guitar-focused distortion detector
@@ -42,7 +32,6 @@ def distortion_score(rms, flatness, zcr, centroid, bandwidth):
     """
     score = 0.0
 
-    # guitar distortion is not noise, it's harmonic density
     if centroid > 1500:
         score += 0.35
 
@@ -52,16 +41,13 @@ def distortion_score(rms, flatness, zcr, centroid, bandwidth):
     if zcr > 0.06:
         score += 0.25
 
-    # flatness is weak for guitar, small weight
     if flatness > 0.01:
         score += 0.15
 
     return min(score, 1.0)
 
 
-# -------------------------------------------------
-# RECOMMENDER CLASS (SAFE BOOTSTRAP)
-# -------------------------------------------------
+#safety
 
 class ToneRecommender:
     def __init__(self):
@@ -72,7 +58,6 @@ class ToneRecommender:
         self.scaler = joblib.load(SCALER_PATH)
 
     def recommend(self, audio_path):
-        # feature extraction
         features = extract_features(audio_path)
         X = features.reshape(1, -1)
 
@@ -81,12 +66,9 @@ class ToneRecommender:
         bandwidth = float(features[2])
         zcr = float(features[3])
         flatness = float(features[4])
-
-        # perceptual prediction
         perceptual_raw = self.model.predict(
             self.scaler.transform(X)
         )[0]
-
         perceptual = {
             "saturation": float(perceptual_raw[0]),
             "brightness": float(perceptual_raw[1]),
@@ -94,18 +76,13 @@ class ToneRecommender:
             "low_end": float(perceptual_raw[3]),
         }
 
-        # distortion override
         dist = distortion_score(
             rms, flatness, zcr, centroid, bandwidth
         )
-
-        # HARD FORCE for distorted guitar
         if dist > 0.45:
             perceptual["saturation"] = max(
                 perceptual["saturation"], 0.75
             )
-
-        # knob mapping
         final_knobs = perceptual_to_knobs(perceptual)
 
         return {
