@@ -1,22 +1,6 @@
-import sys
-import os
+import streamlit as st
 import tempfile
-import streamlit as st
-
-import streamlit as st
-st.write("✅ App booting...")
-
-import sys
 import os
-st.write("📁 Files in root:", os.listdir("."))
-
-st.write("📁 Files in data:", os.listdir("data") if os.path.exists("data") else "NO DATA FOLDER")
-
-# -------------------------------------------------
-# FIX IMPORT PATH (IMPORTANT)
-# -------------------------------------------------
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(ROOT_DIR)
 
 from scripts.recommend_engine import ToneRecommender
 
@@ -122,8 +106,8 @@ or effects chains.
 # -------------------------------------------------
 if uploaded is not None:
     try:
-        # Save uploaded file temporarily
         suffix = uploaded.name.split(".")[-1]
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
             tmp.write(uploaded.read())
             audio_path = tmp.name
@@ -138,7 +122,9 @@ if uploaded is not None:
         # ---------------- RESULTS ----------------
         knobs = result["final_knobs"]
         perceptual = result["perceptual"]
+        distortion = result["distortion_score"]
         confidence = result.get("confidence", 0.8)
+
         # ---------------- AMP CONTROLS ----------------
         st.markdown("## Recommended Amp Controls")
 
@@ -179,6 +165,10 @@ if uploaded is not None:
                 perceptual["low_end"],
                 "Bass fullness and stability."
             )
+
+            st.markdown("---")
+            st.markdown("**Distortion Intensity**")
+            st.progress(distortion)
 
         # ---------------- CONFIDENCE ----------------
         st.markdown("## Confidence")
