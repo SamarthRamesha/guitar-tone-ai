@@ -1,13 +1,19 @@
-import streamlit as st
-import tempfile
+import sys
 import os
+import tempfile
+import streamlit as st
+
+# -------------------------------------------------
+# FIX IMPORT PATH (IMPORTANT)
+# -------------------------------------------------
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(ROOT_DIR)
 
 from scripts.recommend_engine import ToneRecommender
 
 # -------------------------------------------------
-# PAGE CONFIG
+# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
 # -------------------------------------------------
-
 st.set_page_config(
     page_title="Guitar Tone AI",
     page_icon="🎸",
@@ -15,14 +21,20 @@ st.set_page_config(
 )
 
 # -------------------------------------------------
+# LOAD ENGINE (CACHED)
+# -------------------------------------------------
+@st.cache_resource
+def load_engine():
+    return ToneRecommender()
+
+engine = load_engine()
+
+# -------------------------------------------------
 # STYLES
 # -------------------------------------------------
-
 st.markdown("""
 <style>
-body {
-    background-color: #0e1117;
-}
+body { background-color: #0e1117; }
 
 .hero {
     font-size: 2.1rem;
@@ -49,11 +61,6 @@ body {
     font-size: 0.85rem;
 }
 
-.metric-label {
-    color: #9da7b3;
-    font-size: 0.8rem;
-}
-
 hr {
     border: none;
     border-top: 1px solid #1f2630;
@@ -65,7 +72,6 @@ hr {
 # -------------------------------------------------
 # HEADER
 # -------------------------------------------------
-
 st.markdown("<div class='hero'>🎸 Guitar Tone AI</div>", unsafe_allow_html=True)
 st.markdown(
     "<div class='sub'>Perceptual amplifier tone estimation powered by machine learning</div>",
@@ -75,7 +81,6 @@ st.markdown(
 # -------------------------------------------------
 # UPLOAD
 # -------------------------------------------------
-
 uploaded = st.file_uploader(
     "Upload guitar audio",
     type=["wav", "mp3", "flac", "ogg"],
@@ -83,24 +88,22 @@ uploaded = st.file_uploader(
 )
 
 # -------------------------------------------------
-# CONTEXT / LIMITATIONS (NON-INSTRUCTIONAL)
+# INFO PANEL
 # -------------------------------------------------
-
 st.markdown("""
 <div class="panel">
-<strong>How interpretation works</strong><br><br>
+<strong>How it works</strong><br><br>
 
-The system focuses on tonal balance, harmonic density, and spectral behavior
-to infer amplifier-style controls rather than reproducing effects chains.<br><br>
-
-It performs best when the audio represents a consistent tone identity.
+The system analyzes spectral balance, harmonic density, and dynamics
+to estimate amplifier-style controls. It does not recreate pedals
+or effects chains.
 
 <hr>
 
 <div class="small">
-• Designed for riff-level or phrase-level audio<br>
-• Optimized for guitar-forward material<br>
-• Interprets tone character, not playing technique
+• Best with single, consistent tones<br>
+• Optimized for guitar-forward recordings<br>
+• Interprets tone character, not playing skill
 </div>
 </div>
 """, unsafe_allow_html=True)
@@ -108,93 +111,75 @@ It performs best when the audio represents a consistent tone identity.
 # -------------------------------------------------
 # PROCESS AUDIO
 # -------------------------------------------------
-
 if uploaded is not None:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded.name.split('.')[-1]}") as tmp:
-        tmp.write(uploaded.read())
-        audio_path = tmp.name
+    try:
+        # Save uploaded file temporarily
+        suffix = uploaded.name.split(".")[-1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
+            tmp.write(uploaded.read())
+            audio_path = tmp.name
 
-    st.audio(uploaded)
+        st.audio(uploaded)
 
-    engine = ToneRecommender()
-    result = engine.recommend(audio_path)
+        with st.spinner("Analyzing tone..."):
+            result = engine.recommend(audio_path)
 
-    os.remove(audio_path)
+        os.remove(audio_path)
 
-    knobs = result["final_knobs"]
-    perceptual = result["perceptual"]
-    distortion = result["distortion_score"]
-    confidence = result.get("confidence", 0.75)
+        # ---------------- RESULTS ----------------
+        knobs = result["final_knobs"]
+        perceptual = result["perceptual"]
+        confidence = result.get("confidence", 0.8)
+        # ---------------- AMP CONTROLS ----------------
+        st.markdown("## Recommended Amp Controls")
 
-    # -------------------------------------------------
-    # AMP SETTINGS
-    # -------------------------------------------------
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Gain", f"{knobs['gain']:.2f}")
+        c2.metric("Bass", f"{knobs['bass']:.2f}")
+        c3.metric("Mid", f"{knobs['mid']:.2f}")
+        c4.metric("Treble", f"{knobs['treble']:.2f}")
+        c5.metric("Presence", f"{knobs['presence']:.2f}")
 
-    st.markdown("## Recommended Amp Controls")
+        # ---------------- TONE PROFILE ----------------
+        with st.expander("Tone profile"):
+            def bar(label, value, hint):
+                st.markdown(f"**{label}**")
+                st.progress(min(max(value, 0.0), 1.0))
+                st.caption(hint)
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+            bar(
+                "Saturation",
+                perceptual["saturation"],
+                "Harmonic density and drive intensity."
+            )
 
-    c1.metric("Gain", f"{knobs['gain']:.2f}")
-    c2.metric("Bass", f"{knobs['bass']:.2f}")
-    c3.metric("Mid", f"{knobs['mid']:.2f}")
-    c4.metric("Treble", f"{knobs['treble']:.2f}")
-    c5.metric("Presence", f"{knobs['presence']:.2f}")
+            bar(
+                "Brightness",
+                perceptual["brightness"],
+                "High-frequency energy and bite."
+            )
 
-    # -------------------------------------------------
-    # PERCEPTUAL DETAILS
-    # -------------------------------------------------
+            bar(
+                "Mid Emphasis",
+                perceptual["mid_emphasis"],
+                "Midrange forwardness or scoop."
+            )
 
-    with st.expander("Tone profile"):
-        def bar(label, value, hint):
-            st.markdown(f"**{label}**")
-            st.progress(min(max(value, 0.0), 1.0))
-            st.caption(hint)
+            bar(
+                "Low-End Weight",
+                perceptual["low_end"],
+                "Bass fullness and stability."
+            )
 
-        bar(
-            "Saturation",
-            perceptual["saturation"],
-            "Indicates harmonic density and drive. Higher values suggest breakup or distortion."
-        )
-
-        bar(
-            "Brightness",
-            perceptual["brightness"],
-            "Reflects high-frequency energy and presence. Influenced by pick attack and tone controls."
-        )
-
-        bar(
-            "Mid Emphasis",
-            perceptual["mid_emphasis"],
-            "Describes how forward or scooped the midrange feels in the mix."
-        )
-
-        bar(
-            "Low-End Weight",
-            perceptual["low_end"],
-            "Represents bass fullness and low-frequency stability."
-        )
-
-        st.markdown("---")
-
-        st.markdown("**Distortion Intensity**")
-        st.progress(distortion)
-        st.caption(
-            "Estimated from dynamic compression, spectral flatness, and transient behavior."
-        )
+        # ---------------- CONFIDENCE ----------------
+        st.markdown("## Confidence")
+        st.progress(confidence)
 
         st.caption(
-            "Tone profile is inferred from spectral balance and dynamic behavior, "
-            "not from effects or post-processing."
+            "Confidence reflects similarity to learned tonal patterns. "
+            "Unusual processing or rapid tone changes may reduce certainty."
         )
 
-    # -------------------------------------------------
-    # CONFIDENCE
-    # -------------------------------------------------
-
-    st.markdown("## Confidence")
-    st.progress(confidence)
-
-    st.caption(
-        "Confidence reflects how closely this tone aligns with learned tonal patterns. "
-        "Experimental processing or rapid tonal shifts may reduce certainty."
-    )
+    except Exception as e:
+        st.error("An error occurred while processing the audio.")
+        st.exception(e)
