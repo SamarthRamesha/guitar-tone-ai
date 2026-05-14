@@ -1,13 +1,13 @@
 import os
 import joblib
 import numpy as np
-import requests
+import gdown
 from .audio_features import extract_features
 from .perceptual_to_knobs import perceptual_to_knobs
 
 #google drive links
-MODEL_URL = "https://drive.google.com/uc?export=download&id=1IwriwUezERujaXvA9Xl4rh-W435Z4aJ3"
-SCALER_URL = "https://drive.google.com/uc?export=download&id=1IwriwUezERujaXvA9Xl4rh-W435Z4aJ3"
+MODEL_URL = "https://drive.google.com/file/d/1IwriwUezERujaXvA9Xl4rh-W435Z4aJ3/view?usp=sharing"
+SCALER_URL = "https://drive.google.com/file/d/1-kclPHu9tg8id3mgQSAI_3_C3RoIr8mF/view?usp=sharing"
 
 MODEL_PATH = "data/perceptual_model.pkl"
 SCALER_PATH = "data/perceptual_scaler.pkl"
@@ -17,11 +17,8 @@ def _download(url, out_path):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
     if not os.path.exists(out_path):
-        print(f"⬇ Downloading {out_path} ...")
-        r = requests.get(url)
-        r.raise_for_status()
-        with open(out_path, "wb") as f:
-            f.write(r.content)
+        print(f"Downloading {out_path}...")
+        gdown.download(url, out_path, quiet=False)
 
 
 # distortion changes
@@ -90,3 +87,4 @@ class ToneRecommender:
             "perceptual": perceptual,
             "distortion_score": dist,
         }
+
